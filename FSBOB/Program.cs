@@ -19,7 +19,12 @@ namespace FSBOB {
             if (File.Exists(ConfigPath)) {
                 byte[] CfgData = File.ReadAllBytes(ConfigPath);
                 Encryption(ref CfgData);
-                Tools.ReadStruct(CfgData, ref Cfg);
+                try {
+                    Tools.ReadStruct(CfgData, ref Cfg);
+                } catch {
+                    File.Delete(ConfigPath);
+                    goto again;
+                }
             } else {
                 Console.WriteLine("Email:");
                 Cfg.Username = Encoding.UTF8.GetBytes(Console.ReadLine());
@@ -371,6 +376,7 @@ namespace FSBOB {
                 Key ^= ((NxtKey << 8) ^ (BckKey << 8));
                 NxtKey = (Key ^ (Key >> 8 * 4)) | BckKey << (8 * 4) * 2;
                 BckKey ^= Key ^ NxtKey;
+                Key >>= 8;
                 if (Key < 0xFF)
                     Key = NxtKey ^ 0xABD1C2F395C;
 
