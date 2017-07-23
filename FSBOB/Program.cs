@@ -70,6 +70,8 @@ namespace FSBOB {
             System.Threading.Thread.Sleep(5000);
         }
 
+
+        const string UpdatePath = "http://blackdesert.cdn.playredfox.net/BlackDesert/Live/client_version";
         private static void UpdateCheck() {
             int ver = 0;
             if (File.Exists(AppDomain.CurrentDomain.BaseDirectory + "client_version")) {
@@ -93,7 +95,6 @@ namespace FSBOB {
             if (ver == 0)
                 return;
             Console.WriteLine("Procurando por Atualizações do Black Desert...");
-            const string UpdatePath = "http://blackdesert.cdn.playredfox.net/BlackDesert/Live/client_version";
             string[] Info = new WebClient().DownloadString(UpdatePath).Split('\n');
             int LastVer = int.Parse(Info[0].Trim());
 
@@ -184,7 +185,10 @@ namespace FSBOB {
 
         static string AccToken = null;
         static string Server = null;
+        static string Proxy = null;
         const string AllowedMsg = "\"result_code\":100";
+        const string RegionBlocked = "\"result_code\":402";
+        const string InvalidCredentials = "\"result_code\":701";
         const string LoginForm = "email={0}&password={1}&lang=pt";
         const string LoginAddr = "https://www.playredfox.com/black_desert/launcher/purchase_check.json";
         private static void Login(byte[] User, byte[] Pass) {
@@ -192,6 +196,13 @@ namespace FSBOB {
             HttpWebRequest Initialize = WebRequest.CreateHttp(LoginAddr);
             Initialize.ContentType = "application/x-www-form-urlencoded; charset=UTF-8";
             Initialize.Method = "POST";
+
+            if (Proxy != null) {
+                SpecialColor(true, ConsoleColor.Yellow);
+                Console.WriteLine("Habilitando Proxy...");
+                SpecialColor(false);
+                Initialize.Proxy = new WebProxy(Proxy);
+            }
             string Login = string.Format(LoginForm, WebUtility.UrlEncode(Username), WebUtility.UrlEncode(Password));
 
             MemoryStream PostData = new MemoryStream(Encoding.UTF8.GetBytes(Login));
@@ -243,6 +254,30 @@ namespace FSBOB {
 
             if (!ServerReply.Contains(AllowedMsg))
                 AccToken = null;
+
+            if (ServerReply.Contains(RegionBlocked)) {
+                SpecialColor(true);
+                Console.WriteLine("Região Indisponível.");
+                SpecialColor(false);
+                if (Proxy == null) {
+                    SpecialColor(true, ConsoleColor.Yellow);
+                    Console.WriteLine("Deseja tentar burlar o Bloqueio de Região? (Proxy)");
+                    SpecialColor(false);
+                    string Reply = Console.ReadKey().KeyChar.ToString().ToUpper();
+                    Console.WriteLine();
+                    if (Reply.StartsWith("Y") || Reply.StartsWith("S")) {
+                        Proxy = GetProxy();
+                        Console.WriteLine("Proxy Obtido: {0}", Proxy);
+                        Program.Login(User, Pass);
+                    }
+                }
+            }
+            if (ServerReply.Contains(InvalidCredentials)) {
+                SpecialColor(true);
+                Console.WriteLine("Senha Incorreta.");
+                SpecialColor(false);
+
+            }
         }
 
         struct Config {
@@ -255,6 +290,27 @@ namespace FSBOB {
             
         }
 
+        const string ProxyAPI = "http://gimmeproxy.com/api/getProxy?get=true&post=true&cookies=true&referer=true&user-agent=true&country=BR&supportsHttps=true&protocol=http";
+        private static string GetProxy() {
+            Console.WriteLine("Obtendo Proxy Brasileiro...");
+            string Reply = string.Empty;
+            string Proxy = null;
+            while (Reply == string.Empty) {
+                string Response = new WebClient().DownloadString(ProxyAPI).Replace(@" ", "");
+                Proxy = ReadJson(Response, "curl");
+                if (string.IsNullOrWhiteSpace(Proxy))
+                    continue;
+
+                try {
+                    WebClient Client = new WebClient();
+                    Client.Proxy = new WebProxy(Proxy);
+                    Reply = Client.DownloadString(UpdatePath);
+                } catch {
+                    Console.WriteLine("Proxy Test Failed, Trying again...");
+                }
+            }
+            return Proxy;
+        }
 
         private static string SafeInput() {
             int StartTop = Console.CursorTop;
