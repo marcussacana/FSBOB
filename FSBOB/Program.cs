@@ -11,18 +11,25 @@ namespace FSBOB {
 
         static string ConfigPath { get { return AppDomain.CurrentDomain.BaseDirectory + "FSBOB.bin"; } }
         static void Main(string[] args) {
+            Console.OutputEncoding = Encoding.UTF8;
             Console.Title = "Fast SA Blak Desert Bootstrap - Pelo Marcussacana";
             Console.WriteLine("Inicializando...");
             UpdateCheck();
             Config Cfg = new Config();
+            bool AdmRights = true;
         again:;
-            if (File.Exists(ConfigPath)) {
+            if (File.Exists(ConfigPath) && AdmRights) {
                 byte[] CfgData = File.ReadAllBytes(ConfigPath);
                 Encryption(ref CfgData);
                 try {
                     Tools.ReadStruct(CfgData, ref Cfg);
                 } catch {
-                    File.Delete(ConfigPath);
+                    try {
+                        File.Delete(ConfigPath);
+                    } catch {
+                        Console.WriteLine("Ops, parece que você não tem permissões de administrador,\nAdaptando Execução...");
+                        AdmRights = false;
+                    }
                     goto again;
                 }
             } else {
@@ -35,8 +42,10 @@ namespace FSBOB {
             Login(Cfg.Username, Cfg.Password);
             if (AccToken == null) {
                 Console.WriteLine("Autenticação Não Autorizada...");
-                if (File.Exists(ConfigPath))
-                    File.Delete(ConfigPath);
+                try {
+                    if (File.Exists(ConfigPath))
+                        File.Delete(ConfigPath);
+                } catch { }
                 goto again;
             }
 
@@ -47,10 +56,14 @@ namespace FSBOB {
                 bool Save = Console.ReadKey().KeyChar.ToString().ToUpper() == "S";
                 Console.WriteLine();
                 if (Save) {
-                    byte[] Content = Tools.BuildStruct(ref Cfg);
-                    Encryption(ref Content);
-                    File.WriteAllBytes(ConfigPath, Content);
-                    Console.WriteLine("Credenciais salvas...");
+                    try {
+                        byte[] Content = Tools.BuildStruct(ref Cfg);
+                        Encryption(ref Content);
+                        File.WriteAllBytes(ConfigPath, Content);
+                        Console.WriteLine("Credenciais salvas...");
+                    } catch {
+                        Console.WriteLine("Falha ao salvar, tente executar como administrador...");
+                    }
                 }
             }
 
@@ -441,7 +454,7 @@ namespace FSBOB {
         }
 
         private static ulong GetKey() {
-            byte[] Seed = Encoding.UTF8.GetBytes(Environment.UserName + Environment.OSVersion);
+            byte[] Seed = Encoding.UTF8.GetBytes((string.IsNullOrEmpty(Environment.MachineName) ? Environment.UserName : Environment.MachineName) + Environment.OSVersion);
 
             if (Seed.Length < 4)
                 return 0x90F9BC1CF91;
